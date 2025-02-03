@@ -310,15 +310,9 @@ int countMisplacedTiles(vector<vector<int>> &puzzle) {
 
     for (int row = 0; row < puzzle.size(); row++) {
         for (int col = 0; col < puzzle.at(0).size(); col++) {
-
-        
-
             if (puzzle.at(row).at(col) != currNumber) {
                 misplacedTiles++;
             }
-
-
-
             currNumber++;
         }
     }
@@ -330,7 +324,7 @@ void printPuzzle(const vector<vector<int>> &puzzle) {
     for (int r = 0; r < puzzle.size(); r++) {
         cout << "\t";
         for (int c = 0; c < puzzle.at(0).size(); c++) {
-            cout << puzzle.at(r).at(c);
+            cout << puzzle.at(r).at(c) << " ";
         }
         cout << endl;
     }
@@ -384,7 +378,7 @@ void printSolution(const vector<vector<vector<int>>> &solutionSteps, const vecto
 
     int stepCount = 1;
 
-    cout << "Solution Path Length: " << solutionSteps.size() << endl;
+    cout << "Solution Path Length: " << solutionSteps.size() - 1 << endl;
     cout << endl;
     cout << "\tStarting State" << endl;
     printPuzzle(puzzle);
@@ -427,13 +421,15 @@ int main() {
             stringstream ss(row);
             int val;
 
-            for (int j = 0; j < row.size(); j++) {
+            for (int j = 0; j < puzzleLength; j++) {
                 // puzzle.at(i).push_back(row.at(j) - '0');
                 ss >> val;
                 ss.get();
                 puzzle.at(i).push_back(val);
             }
         }
+
+        printPuzzle(puzzle);
 
         {
             // Uniform Cost Search
