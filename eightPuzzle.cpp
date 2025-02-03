@@ -11,7 +11,7 @@ bool manhattanDistanceHeuristic(vector<vector<int>> puzzle);
 // General Helper Functions
 bool inRange(int row, int col, int size);
 pair<int,int> findEmptyCoord(vector<vector<int>> &puzzle);
-void printPuzzle(vector<vector<int>> &puzzle);
+void printPuzzle(const vector<vector<int>> &puzzle);
 string stateToString(const vector<vector<int>> &puzzle);
 bool isSolutionState(vector<vector<int>> &state);
 
@@ -19,7 +19,7 @@ int countMisplacedTiles(vector<vector<int>> &puzzle);
 
 int calculateManhattanDistance(const vector<vector<int>> &puzzle);
 int manhattanDistanceCalculator(const pair<int,int> coordA, const pair<int,int> coordB);
-pair<int,int> findRowAndCol(const vector<vector<int>> &puzzle, int number);
+pair<int,int> findCurrentRowAndCol(const vector<vector<int>> &puzzle, int number);
 
 
 
@@ -180,17 +180,33 @@ int calculateManhattanDistance(const vector<vector<int>> &puzzle) {
         for (int col = 0; col < puzzle.at(0).size(); col++) {
 
             if (puzzle.at(row).at(col) == currNumber) {
+                currNumber++;
                 continue;
             }
 
-            pair<int, int> currRowAndCol = {row, col};
-            pair<int, int> correctRowAndCol = findRowAndCol(puzzle, currNumber);
+            if (currNumber == maxNumber) {
+                return totalManhattanDistance;
+            }
 
-            totalManhattanDistance += manhattanDistanceCalculator(currRowAndCol, correctRowAndCol);
+            pair<int, int> correctRowAndCol = {row, col};
+            pair<int, int> currentRowAndCol = findCurrentRowAndCol(puzzle, currNumber);
+            totalManhattanDistance += manhattanDistanceCalculator(correctRowAndCol, currentRowAndCol);
 
+            // cout << endl;
+            // cout << "correct row and col of: " << currNumber << ": (" << correctRowAndCol.first << ", " << correctRowAndCol.second << ")" << endl;
+            // cout << "current row and col of: " << currNumber << ": (" << currentRowAndCol.first << ", " << currentRowAndCol.second << ")" << endl;
+
+            // cout << "Added " << manhattanDistanceCalculator(correctRowAndCol, currentRowAndCol) << endl;
+            // printPuzzle(puzzle);
+            // cout << endl;
+            
             currNumber++;
         }
     }
+
+    // cout << "Manhattan Distance of puzzle below is: " << totalManhattanDistance << endl;
+    // printPuzzle(puzzle);
+    // cout << "-----------------------------------------" << endl;
 
     return totalManhattanDistance;
 
@@ -198,24 +214,20 @@ int calculateManhattanDistance(const vector<vector<int>> &puzzle) {
 
 int manhattanDistanceCalculator(const pair<int,int> coordA, const pair<int,int> coordB) {
 
-    return (abs(coordA.first - coordB.first) + abs(coordB.second - coordB.second));
+    return (abs(coordA.first - coordB.first) + abs(coordA.second - coordB.second));
 }
 
-pair<int,int> findRowAndCol(const vector<vector<int>> &puzzle, int number) {
-
+pair<int,int> findCurrentRowAndCol(const vector<vector<int>> &puzzle, int number) {
     int sideLength = puzzle.size();
 
-    return {number / sideLength, number % sideLength};
-
-
-    // for (int r = 0; r < puzzle.size(); r++) {
-    //     for (int c = 0; c < puzzle.at(0).size(); c++) {
-    //         if (puzzle.at(r).at(c) == number) {
-    //             return {r, c};
-    //         }
-    //     }
-    // }
-    // return {-1, -1};
+    for (int r = 0; r < puzzle.size(); r++) {
+        for (int c = 0; c < puzzle.at(0).size(); c++) {
+            if (puzzle.at(r).at(c) == number) {
+                return {r, c};
+            }
+        }
+    }
+    return {-1, -1};
 }
 
 bool inRange(int row, int col, int size) {
@@ -236,9 +248,7 @@ pair<int,int> findEmptyCoord(vector<vector<int>> &puzzle) {
     return {-1, -1};
 }
 
-
 int countMisplacedTiles(vector<vector<int>> &puzzle) {
-
     int currNumber = 1;
     int misplacedTiles = 0;
     int maxNumber = puzzle.size() * puzzle.size();
@@ -258,12 +268,10 @@ int countMisplacedTiles(vector<vector<int>> &puzzle) {
         }
     }
 
-
     return 0;
-
 }
 
-void printPuzzle(vector<vector<int>> &puzzle) {
+void printPuzzle(const vector<vector<int>> &puzzle) {
     for (int r = 0; r < puzzle.size(); r++) {
         for (int c = 0; c < puzzle.at(0).size(); c++) {
             cout << puzzle.at(r).at(c);
@@ -274,7 +282,6 @@ void printPuzzle(vector<vector<int>> &puzzle) {
 }
 
 bool isSolutionState(vector<vector<int>> &puzzle) {
-
     int currNumber = 1;
 
     int maxNumber = puzzle.size() * puzzle.size();
@@ -294,13 +301,11 @@ bool isSolutionState(vector<vector<int>> &puzzle) {
         }
     }
 
-
     return true;
 }
 
 
 int main() {
-
     int testCases = 0;
 
     cout << "Enter testcase count" << endl;
