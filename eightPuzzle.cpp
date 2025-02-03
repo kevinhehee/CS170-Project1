@@ -1,12 +1,15 @@
 #include <bits/stdc++.h>
 #include <iostream>
 #include <unordered_set>
+#include <sstream>
 
 using namespace std;
 
-bool uniformCostSearch(vector<vector<int>> puzzle);
-bool misplacedTileHeuristic(vector<vector<int>> puzzle);
-bool manhattanDistanceHeuristic(vector<vector<int>> puzzle);
+vector<int> directions{-1, 0, 1, 0, -1};
+
+unordered_map<string, string> uniformCostSearch(vector<vector<int>> puzzle);
+unordered_map<string, string> misplacedTileHeuristic(vector<vector<int>> puzzle);
+unordered_map<string, string> manhattanDistanceHeuristic(vector<vector<int>> puzzle);
 
 // General Helper Functions
 bool inRange(int row, int col, int size);
@@ -14,6 +17,8 @@ pair<int,int> findEmptyCoord(vector<vector<int>> &puzzle);
 void printPuzzle(const vector<vector<int>> &puzzle);
 string stateToString(const vector<vector<int>> &puzzle);
 bool isSolutionState(vector<vector<int>> &state);
+vector<vector<vector<int>>> traceBackSolutionSteps(unordered_map<string, string> &map, int mapSize);
+void printSolution(const vector<vector<vector<int>>> &steps, const vector<vector<int>> &puzzle);
 
 int countMisplacedTiles(vector<vector<int>> &puzzle);
 
@@ -21,43 +26,93 @@ int calculateManhattanDistance(const vector<vector<int>> &puzzle);
 int manhattanDistanceCalculator(const pair<int,int> coordA, const pair<int,int> coordB);
 pair<int,int> findCurrentRowAndCol(const vector<vector<int>> &puzzle, int number);
 
-
-
-string stateToString(vector<vector<int>> &puzzle) {
+string stateToString(const vector<vector<int>> &puzzle) {
     string result;
 
     for (int r = 0; r < puzzle.size(); r++) {
         for (int c = 0; c < puzzle.at(0).size(); c++) {
-            result.push_back(puzzle.at(r).at(c));
+
+            // cout << puzzle.at(r).at(c) << endl;
+            result += to_string(puzzle.at(r).at(c)) + ",";
         }
     }
     return result;
 }
 
+vector<vector<int>> stringToState(const string &puzzleString, int mapLength) {
 
-vector<int> directions{-1, 0, 1, 0, -1};
+    stringstream ss(puzzleString);
 
-bool uniformCostSearch(vector<vector<int>> puzzle) {
+    vector<vector<int>> puzzle(mapLength, vector<int>(mapLength, 0));
+
+    int num;
+
+    for (int i = 0; i < mapLength; i++) {
+        for (int j = 0; j < mapLength; j++) {
+            ss >> num;
+            ss.get();
+            puzzle.at(i).at(j) = num;
+
+        }
+    }
+
+    return puzzle;
+}
+
+vector<vector<int>> getSolutionState(int mapLength) {
+    int count = 1;
+    vector<vector<int>> solution(mapLength, vector<int>(mapLength, 0));
+
+    for (int i = 0; i < mapLength; i++) {
+        for (int j = 0; j < mapLength; j++) {
+
+            if (i == mapLength - 1 && j == mapLength - 1) {
+                return solution;
+            }
+            solution.at(i).at(j) = count;
+            count++;
+        }
+    }
+    return {{}};
+}
+
+vector<vector<vector<int>>> traceBackSolutionSteps(unordered_map<string, string> &map, int mapLength) {
+
+    vector<vector<int>> solutionState = getSolutionState(mapLength);
+    string solutionStateString = stateToString(solutionState);
+
+    if (!map.count(solutionStateString)) {
+        return {{{}}};
+    }
+
+    vector<vector<vector<int>>> solutionSteps{solutionState};
+
+    string currStateString = solutionStateString;
+
+    while (map.at(currStateString) != "") {
+        string prevStateString = map.at(currStateString);
+        solutionSteps.push_back(stringToState(prevStateString, mapLength));
+        currStateString = prevStateString;
+    }
+
+    return solutionSteps;
+}
+
+unordered_map<string, string> uniformCostSearch(vector<vector<int>> puzzle) {
     queue<vector<vector<int>>> nodes;
+    unordered_map<string, string> visitedMap;
+    visitedMap.insert({stateToString(puzzle), ""});
 
-    unordered_set<string> visited;
-
-    visited.insert(stateToString(puzzle));
     nodes.push(puzzle);
-
-    int puzzleNumber = 1;
-    int duplicates = 1;
 
     while (!nodes.empty()) {
         vector<vector<int>> currNode = nodes.front();
         nodes.pop();
-        
-        // cout << puzzleNumber++ << endl;
-        // printPuzzle(currNode);
-        // cout << endl;
 
+        string currStateString = stateToString(currNode);
+    
         if (isSolutionState(currNode)) {
-            return true;
+            return visitedMap;
         }
 
         pair<int,int> zeroRowAndCol = findEmptyCoord(currNode);
@@ -72,35 +127,33 @@ bool uniformCostSearch(vector<vector<int>> puzzle) {
                 swap(currNode.at(zeroRow).at(zeroCol), currNode.at(newRow).at(newCol));
 
                 string newStateString = stateToString(currNode);
-                if (visited.find(newStateString) == visited.end()) {
+                if (visitedMap.find(newStateString) == visitedMap.end()) {
                     nodes.push(currNode);
-                    visited.insert(newStateString);
+                    visitedMap.insert({newStateString, currStateString});
                 }
                 swap(currNode.at(zeroRow).at(zeroCol), currNode.at(newRow).at(newCol));
             }
         }
     }
 
-    return false;
-
-
+    return visitedMap;
 }
 
-bool misplacedTileHeuristic(vector<vector<int>> puzzle) {
-
-    unordered_set<string> visited;
+unordered_map<string, string> misplacedTileHeuristic(vector<vector<int>> puzzle) {
     priority_queue<pair<int, vector<vector<int>>>, vector<pair<int, vector<vector<int>>>>, greater<pair<int, vector<vector<int>>>>> nodes;
+    unordered_map<string, string> visitedMap;
 
-    visited.insert(stateToString(puzzle));
+    visitedMap.insert({stateToString(puzzle), ""});
     nodes.push({countMisplacedTiles(puzzle), puzzle});
 
     while (!nodes.empty()) {
-
         vector<vector<int>> currNode = nodes.top().second;
         nodes.pop();
 
+        string currStateString = stateToString(currNode);
+
         if (isSolutionState(currNode)) {
-            return true;
+            return visitedMap;
         }
 
         pair<int,int> zeroRowAndCol = findEmptyCoord(currNode);
@@ -115,25 +168,25 @@ bool misplacedTileHeuristic(vector<vector<int>> puzzle) {
                 swap(currNode.at(zeroRow).at(zeroCol), currNode.at(newRow).at(newCol));
 
                 string newStateString = stateToString(currNode);
-                if (visited.find(newStateString) == visited.end()) {
+                if (visitedMap.find(newStateString) == visitedMap.end()) {
                     nodes.push({countMisplacedTiles(currNode), currNode});
-                    visited.insert(newStateString);
+                    visitedMap.insert({newStateString, currStateString});
                 }
                 swap(currNode.at(zeroRow).at(zeroCol), currNode.at(newRow).at(newCol));
             }
         }
     }
 
-    return false;
+    return visitedMap;
 }
 
 
-bool manhattanDistanceHeuristic(vector<vector<int>> puzzle) {
+unordered_map<string, string> manhattanDistanceHeuristic(vector<vector<int>> puzzle) {
 
-    unordered_set<string> visited;
+    unordered_map<string, string> visitedMap;
     priority_queue<pair<int, vector<vector<int>>>, vector<pair<int, vector<vector<int>>>>, greater<pair<int, vector<vector<int>>>>> nodes;
 
-    visited.insert(stateToString(puzzle));
+    visitedMap.insert({stateToString(puzzle), ""});
     nodes.push({calculateManhattanDistance(puzzle), puzzle});
 
     while (!nodes.empty()) {
@@ -141,8 +194,10 @@ bool manhattanDistanceHeuristic(vector<vector<int>> puzzle) {
         vector<vector<int>> currNode = nodes.top().second;
         nodes.pop();
 
+        string currStateString = stateToString(currNode);
+
         if (isSolutionState(currNode)) {
-            return true;
+            return visitedMap;
         }
 
         pair<int,int> zeroRowAndCol = findEmptyCoord(currNode);
@@ -157,16 +212,16 @@ bool manhattanDistanceHeuristic(vector<vector<int>> puzzle) {
                 swap(currNode.at(zeroRow).at(zeroCol), currNode.at(newRow).at(newCol));
 
                 string newStateString = stateToString(currNode);
-                if (visited.find(newStateString) == visited.end()) {
+                if (visitedMap.find(newStateString) == visitedMap.end()) {
                     nodes.push({calculateManhattanDistance(currNode), currNode});
-                    visited.insert(newStateString);
+                    visitedMap.insert({newStateString, currStateString});
                 }
                 swap(currNode.at(zeroRow).at(zeroCol), currNode.at(newRow).at(newCol));
             }
         }
     }
 
-    return false;
+    return visitedMap;
 }
 
 
@@ -273,6 +328,7 @@ int countMisplacedTiles(vector<vector<int>> &puzzle) {
 
 void printPuzzle(const vector<vector<int>> &puzzle) {
     for (int r = 0; r < puzzle.size(); r++) {
+        cout << "\t";
         for (int c = 0; c < puzzle.at(0).size(); c++) {
             cout << puzzle.at(r).at(c);
         }
@@ -304,6 +360,45 @@ bool isSolutionState(vector<vector<int>> &puzzle) {
     return true;
 }
 
+void printTime(chrono::duration<double> elapsedSeconds, int searchType) {
+
+    double timeSeconds = elapsedSeconds.count();
+    double timeMs = timeSeconds * 1000;
+
+    if (searchType == 1) {
+        cout << "Uniform Cost Search: " << endl;
+        cout << "Time to search: " << timeMs << " ms" << endl;
+
+    } else if (searchType == 2) {
+        cout << "Misplaced Tile Heuristic A-Star Search: " << endl;
+        cout << "Time to search: " << timeMs << " ms" << endl;
+        
+    } else if (searchType == 3) {
+        cout << "Manhattan Distance Heuristic A-Star Search: " << endl;
+        cout << "Time to search: " << timeMs << " ms" << endl;
+    }
+
+}
+
+void printSolution(const vector<vector<vector<int>>> &solutionSteps, const vector<vector<int>> &puzzle) {
+
+    int stepCount = 1;
+
+    cout << "Solution Path Length: " << solutionSteps.size() << endl;
+    cout << endl;
+    cout << "\tStarting State" << endl;
+    printPuzzle(puzzle);
+
+    for (int i = 1; i < (int)solutionSteps.size() - 1; i++) {
+        cout << "\tStep: " << stepCount++ << endl;
+        printPuzzle(solutionSteps.at(i));
+    }
+    cout << "\tSolution Step (" << stepCount << ")" << endl;
+    printPuzzle(solutionSteps.back());
+    
+}
+
+
 
 int main() {
     int testCases = 0;
@@ -311,124 +406,101 @@ int main() {
     cout << "Enter testcase count" << endl;
     cin >> testCases;
 
-    int puzzleWidth = 0;
-    cin >> puzzleWidth;
+    int puzzleLength = 0;
+    cin >> puzzleLength;
 
     int testCase = 1;
 
-    cout << endl << endl;
+    cout << endl;
     while (testCases--) {
 
         cout << "TEST CASE: " << testCase++ << endl;
         cout << "-------------------------------------" << endl;
 
-        vector<vector<int>> puzzle(puzzleWidth, vector<int>());
+        vector<vector<int>> puzzle(puzzleLength, vector<int>());
 
         string row;
 
-        for (int i = 0; i < puzzleWidth; i++) {
+        for (int i = 0; i < puzzleLength; i++) {
             cin >> row;
 
+            stringstream ss(row);
+            int val;
+
             for (int j = 0; j < row.size(); j++) {
-                puzzle.at(i).push_back(row.at(j) - '0');
+                // puzzle.at(i).push_back(row.at(j) - '0');
+                ss >> val;
+                ss.get();
+                puzzle.at(i).push_back(val);
             }
-
-
         }
 
         {
             // Uniform Cost Search
             auto startTime = chrono::high_resolution_clock::now();
-
-            bool validSolution = uniformCostSearch(puzzle);
-
+            unordered_map<string, string> puzzleMap = uniformCostSearch(puzzle);
             auto endTime = chrono::high_resolution_clock::now();
 
-            chrono::duration<double> elapsedSeconds = endTime - startTime;
+            printTime(endTime - startTime, 1);
 
-            double timeSeconds = elapsedSeconds.count();
-            double timeMs = timeSeconds * 1000;
+            string solutionStateString = stateToString(getSolutionState(puzzleLength));
 
-            cout << "Uniform Cost Search: " << endl;
-            cout << "Time to search: " << timeSeconds << " seconds" << endl;
-            cout  << timeMs << " ms" << endl;
+            if (puzzleMap.count(solutionStateString)) {
+                vector<vector<vector<int>>> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
 
-            if (validSolution) {
-                cout << "Solution" << endl;
+                reverse(solutionSteps.begin(), solutionSteps.end());
+
+                printSolution(solutionSteps, puzzle);
+
             } else {
                 cout << "No Solution" << endl;
             }
         }
 
-        cout << endl << endl;
+        cout << endl;
 
         {
             // Misplaced Tile Heuristic A-Star Search
             auto startTime = chrono::high_resolution_clock::now();
-
-            bool validSolution = misplacedTileHeuristic(puzzle);
-
+            unordered_map<string, string> puzzleMap = misplacedTileHeuristic(puzzle);
             auto endTime = chrono::high_resolution_clock::now();
 
-            chrono::duration<double> elapsedSeconds = endTime - startTime;
+            printTime(endTime - startTime, 2);
+            string solutionStateString = stateToString(getSolutionState(puzzleLength));
 
-            double timeSeconds = elapsedSeconds.count();
-            double timeMs = timeSeconds * 1000;
+            if (puzzleMap.count(solutionStateString)) {
+                vector<vector<vector<int>>> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
+                reverse(solutionSteps.begin(), solutionSteps.end());
+                printSolution(solutionSteps, puzzle);
 
-            cout << "Misplaced Tile Heuristic A-Star Search: " << endl;
-            cout << "Time to search: " << timeSeconds << " seconds" << endl;
-            cout  << timeMs << " ms" << endl;
-
-            if (validSolution) {
-                cout << "Solution" << endl;
             } else {
                 cout << "No Solution" << endl;
             }
         }
 
-        cout << endl << endl;
+        cout << endl;
 
         {
             // Manhattan Distance Heuristic A-Star Search
             auto startTime = chrono::high_resolution_clock::now();
-
-            bool validSolution = manhattanDistanceHeuristic(puzzle);
-
+            unordered_map<string, string> puzzleMap = manhattanDistanceHeuristic(puzzle);
             auto endTime = chrono::high_resolution_clock::now();
+            
+            printTime(endTime - startTime, 3);
 
-            chrono::duration<double> elapsedSeconds = endTime - startTime;
+            string solutionStateString = stateToString(getSolutionState(puzzleLength));
 
-            double timeSeconds = elapsedSeconds.count();
-            double timeMs = timeSeconds * 1000;
+            if (puzzleMap.count(solutionStateString)) {
+                vector<vector<vector<int>>> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
+                reverse(solutionSteps.begin(), solutionSteps.end());
+                printSolution(solutionSteps, puzzle);
 
-            cout << "Manhattan Distance Heuristic A-Star Search: " << endl;
-            cout << "Time to search: " << timeSeconds << " seconds" << endl;
-            cout  << timeMs << " ms" << endl;
-
-            if (validSolution) {
-                cout << "Solution" << endl;
             } else {
                 cout << "No Solution" << endl;
             }
         }
 
-
-
-
-
-
-
-
-
-
-        cout << endl << endl;
-
-
-
-
-
-
-
+        cout << endl;
 
     }
 
