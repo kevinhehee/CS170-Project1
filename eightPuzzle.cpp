@@ -2,6 +2,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <sstream>
+#include <iomanip>
 
 using namespace std;
 
@@ -9,28 +10,9 @@ using namespace std;
 
 vector<int> directions{-1, 0, 1, 0, -1};
 
-unordered_map<string, string> uniformCostSearch(vector<vector<int>> puzzle);
-unordered_map<string, string> misplacedTileHeuristic(vector<vector<int>> puzzle);
-unordered_map<string, string> manhattanDistanceHeuristic(vector<vector<int>> puzzle);
-
-// General Helper Functions
-bool inRange(int row, int col, int size);
-pair<int,int> findEmptyCoord(vector<vector<int>> &puzzle);
-void printPuzzle(const vector<vector<int>> &puzzle);
-string stateToString(const vector<vector<int>> &puzzle);
-bool isSolutionState(vector<vector<int>> &state);
-vector<vector<vector<int>>> traceBackSolutionSteps(unordered_map<string, string> &map, int mapSize);
-void printSolution(const vector<vector<vector<int>>> &steps, const vector<vector<int>> &puzzle);
-
 int countMisplacedTiles(const vector<vector<int>> &puzzle);
 
 int calculateManhattanDistance(const vector<vector<int>> &puzzle);
-int manhattanDistanceCalculator(const pair<int,int> coordA, const pair<int,int> coordB);
-pair<int,int> findCurrentRowAndCol(const vector<vector<int>> &puzzle, int number);
-
-int ucsMaxQueueSize = 0;
-int misplacedMaxQueueSize = 0;
-int manhattanMaxQueueSize = 0;
 
 struct State {
     
@@ -38,14 +20,43 @@ struct State {
     int stepsTaken;
     int manhattanDistance;
     int misplacedTiles;
+    int queueSize;
+    std::__1::chrono::steady_clock::time_point time;
 
-    State(const vector<vector<int>> &puzzle, int stepsTaken) {
+    State() {
+        this->puzzle = {};
+        this->stepsTaken = -1;
+        this->manhattanDistance = -1;
+        this->misplacedTiles = -1;
+        this->queueSize = 1;
+    }
+
+    State(const vector<vector<int>> &puzzle, int stepsTaken, int queueSize) {
         this->puzzle = vector<vector<int>>(puzzle);
         this->stepsTaken = stepsTaken;
         this->manhattanDistance = calculateManhattanDistance(puzzle);
         this->misplacedTiles = countMisplacedTiles(puzzle);
+        this->queueSize = queueSize;
+        this->time = chrono::high_resolution_clock::now();
     }
+
 };
+// General Helper Functions
+bool inRange(int row, int col, int size);
+pair<int,int> findEmptyCoord(vector<vector<int>> &puzzle);
+void printPuzzle(const vector<vector<int>> &puzzle);
+string stateToString(const vector<vector<int>> &puzzle);
+bool isSolutionState(vector<vector<int>> &state);
+// vector<State> traceBackSolutionSteps(unordered_map<string, string> &map, int mapSize);
+void printSolution(const vector<State> &, const vector<vector<int>> &puzzle);
+
+int manhattanDistanceCalculator(const pair<int,int> coordA, const pair<int,int> coordB);
+pair<int,int> findCurrentRowAndCol(const vector<vector<int>> &puzzle, int number);
+
+int ucsMaxQueueSize = 0;
+int misplacedMaxQueueSize = 0;
+int manhattanMaxQueueSize = 0;
+
 
 struct misplacedTileComparator {
     bool operator() (const State &a, const State &b) const {
@@ -106,7 +117,7 @@ vector<vector<int>> getSolutionState(int mapLength) {
     return {{}};
 }
 
-vector<vector<vector<int>>> traceBackSolutionSteps(unordered_map<string, string> &map, int mapLength) {
+vector<State> traceBackSolutionSteps(unordered_map<string, State> &map, int mapLength) {
 
     vector<vector<int>> solutionState = getSolutionState(mapLength);
     string solutionStateString = stateToString(solutionState);
@@ -115,40 +126,46 @@ vector<vector<vector<int>>> traceBackSolutionSteps(unordered_map<string, string>
         return {{{}}};
     }
 
-    vector<vector<vector<int>>> solutionSteps{solutionState};
+    // vector<vector<vector<int>>> solutionSteps{solutionState};
+
+    vector<State> solutionSteps{State(solutionState, -1, -1)};
 
     string currStateString = solutionStateString;
 
-    while (map.at(currStateString) != "") {
-        string prevStateString = map.at(currStateString);
-        solutionSteps.push_back(stringToState(prevStateString, mapLength));
-        currStateString = prevStateString;
+    while (map.at(currStateString).puzzle.size() != 0) {
+        State prevState = map.at(currStateString);
+        solutionSteps.push_back(prevState);
+        currStateString = stateToString(prevState.puzzle);
     }
 
     return solutionSteps;
 }
 
-unordered_map<string, string> uniformCostSearch(vector<vector<int>> puzzle) {
-    queue<vector<vector<int>>> nodes;
-    unordered_map<string, string> visitedMap;
-    visitedMap.insert({stateToString(puzzle), ""});
-    nodes.push(puzzle);
+unordered_map<string, State> uniformCostSearch(vector<vector<int>> puzzle) {
+    queue<State> nodes;
+    unordered_map<string, State> visitedMap;
+    visitedMap.insert({stateToString(puzzle), State()});
+    nodes.push(State(puzzle, 0, 1));
 
     int maxQueueSize = 1;
 
     while (!nodes.empty()) {
+
         maxQueueSize = max(maxQueueSize, (int)nodes.size());
-        vector<vector<int>> currNode = nodes.front();
+        State currNode = nodes.front();
+        int gN = currNode.stepsTaken;
         nodes.pop();
 
-        string currStateString = stateToString(currNode);
+        string currStateString = stateToString(currNode.puzzle);
     
-        if (isSolutionState(currNode)) {
+        if (isSolutionState(currNode.puzzle)) {
+                        cout << "SOLUTION END QUEUE SIZE: "<< nodes.size() << endl;
+
             ucsMaxQueueSize = maxQueueSize;
             return visitedMap;
         }
 
-        pair<int,int> zeroRowAndCol = findEmptyCoord(currNode);
+        pair<int,int> zeroRowAndCol = findEmptyCoord(currNode.puzzle);
         int zeroRow = zeroRowAndCol.first;
         int zeroCol = zeroRowAndCol.second;
 
@@ -156,15 +173,17 @@ unordered_map<string, string> uniformCostSearch(vector<vector<int>> puzzle) {
             int newRow = zeroRow + directions.at(dirCount);
             int newCol = zeroCol + directions.at(dirCount + 1);
 
-            if (inRange(newRow, newCol, currNode.size())) {
-                swap(currNode.at(zeroRow).at(zeroCol), currNode.at(newRow).at(newCol));
+            if (inRange(newRow, newCol, currNode.puzzle.size())) {
+                swap(currNode.puzzle.at(zeroRow).at(zeroCol), currNode.puzzle.at(newRow).at(newCol));
+                vector<vector<int>> newState = vector<vector<int>>(currNode.puzzle);
+                swap(currNode.puzzle.at(zeroRow).at(zeroCol), currNode.puzzle.at(newRow).at(newCol));
 
-                string newStateString = stateToString(currNode);
+                string newStateString = stateToString(newState);
                 if (visitedMap.find(newStateString) == visitedMap.end()) {
-                    nodes.push(currNode);
-                    visitedMap.insert({newStateString, currStateString});
+                    State newNode = State(newState, gN + 1, nodes.size());
+                    nodes.push(newNode);
+                    visitedMap.insert({newStateString, currNode});
                 }
-                swap(currNode.at(zeroRow).at(zeroCol), currNode.at(newRow).at(newCol));
             }
         }
     }
@@ -172,12 +191,12 @@ unordered_map<string, string> uniformCostSearch(vector<vector<int>> puzzle) {
     return visitedMap;
 }
 
-unordered_map<string, string> misplacedTileHeuristic(vector<vector<int>> puzzle) {
+unordered_map<string, State> misplacedTileHeuristic(vector<vector<int>> puzzle) {
     priority_queue<State, vector<State>, misplacedTileComparator> nodes; 
-    unordered_map<string, string> visitedMap;
-
-    visitedMap.insert({stateToString(puzzle), ""});
-    nodes.push(State(puzzle, 0));
+    unordered_map<string, State> visitedMap;
+    
+    visitedMap.insert({stateToString(puzzle), State()});
+    nodes.push(State(puzzle, 0, 1));
     int maxQueueSize = 1;
 
     while (!nodes.empty()) {
@@ -189,6 +208,7 @@ unordered_map<string, string> misplacedTileHeuristic(vector<vector<int>> puzzle)
         string currStateString = stateToString(currNode.puzzle);
 
         if (isSolutionState(currNode.puzzle)) {
+            cout << "SOLUTION END QUEUE SIZE: "<< nodes.size() << endl;
             misplacedMaxQueueSize = maxQueueSize;
             return visitedMap;
         }
@@ -208,9 +228,9 @@ unordered_map<string, string> misplacedTileHeuristic(vector<vector<int>> puzzle)
 
                 string newStateString = stateToString(newState);
                 if (visitedMap.find(newStateString) == visitedMap.end()) {
-                    State newNode = State(newState, gN + 1);
+                    State newNode = State(newState, gN + 1, nodes.size());
                     nodes.push(newNode);
-                    visitedMap.insert({newStateString, currStateString});
+                    visitedMap.insert({newStateString, currNode});
                 }
             }
         }
@@ -220,12 +240,12 @@ unordered_map<string, string> misplacedTileHeuristic(vector<vector<int>> puzzle)
 }
 
 
-unordered_map<string, string> manhattanDistanceHeuristic(vector<vector<int>> puzzle) {
+unordered_map<string, State> manhattanDistanceHeuristic(vector<vector<int>> puzzle) {
     priority_queue<State, vector<State>, manhattanDistanceComparator> nodes; 
-    unordered_map<string, string> visitedMap;
+    unordered_map<string, State> visitedMap;
 
-    visitedMap.insert({stateToString(puzzle), ""});
-    nodes.push(State(puzzle, 0));
+    visitedMap.insert({stateToString(puzzle), State()});
+    nodes.push(State(puzzle, 0, 1));
     int maxQueueSize = 1;
 
     while (!nodes.empty()) {
@@ -237,6 +257,8 @@ unordered_map<string, string> manhattanDistanceHeuristic(vector<vector<int>> puz
         string currStateString = stateToString(currNode.puzzle);
 
         if (isSolutionState(currNode.puzzle)) {
+                        cout << "SOLUTION END QUEUE SIZE: "<< nodes.size() << endl;
+
             manhattanMaxQueueSize = maxQueueSize;
             return visitedMap;
         }
@@ -256,10 +278,9 @@ unordered_map<string, string> manhattanDistanceHeuristic(vector<vector<int>> puz
 
                 string newStateString = stateToString(newState);
                 if (visitedMap.find(newStateString) == visitedMap.end()) {
-                    State newNode = State(stringToState(newStateString, puzzle.size()), gN + 1);
+                    State newNode = State(newState, gN + 1, nodes.size());
                     nodes.push(newNode);
-
-                    visitedMap.insert({newStateString, currStateString});
+                    visitedMap.insert({newStateString, currNode});
                 }
             }
         }
@@ -293,7 +314,6 @@ int calculateManhattanDistance(const vector<vector<int>> &puzzle) {
         }
     }
     return totalManhattanDistance;
-
 }
 
 int manhattanDistanceCalculator(const pair<int,int> coordA, const pair<int,int> coordB) {
@@ -406,19 +426,44 @@ void printTime(chrono::duration<double> elapsedSeconds, int searchType) {
 
 }
 
-void printSolution(const vector<vector<vector<int>>> &solutionSteps, const vector<vector<int>> &puzzle) {
+void printSolution(const vector<State> &solutionSteps, const vector<vector<int>> &puzzle) {
 
     int stepCount = 1;
     cout << endl;
-    cout << "\tStarting State" << endl;
-    printPuzzle(puzzle);
+    // cout << "\tStarting State" << endl;
+    // printPuzzle(puzzle);
 
+    // for (int i = 1; i < (int)solutionSteps.size() - 1; i++) {
+    //     cout << "\tStep: " << stepCount++ << endl;
+    //     printPuzzle(solutionSteps.at(i).puzzle);
+    // }
+    // cout << "\tSolution Step (" << stepCount << ")" << endl;
+    // printPuzzle(solutionSteps.back().puzzle);
+
+    // cout << "solution queue size at each step" << endl;
+    // for (int i = 1; i < (int)solutionSteps.size() - 1; i++) {
+    //     // cout << "\tStep: " << stepCount++ << endl;
+    //     cout << solutionSteps.at(i).queueSize << endl;
+    // }
+    // cout << endl;
+
+    double currTimeMs = 0;
+
+    cout << "times: " << endl;
     for (int i = 1; i < (int)solutionSteps.size() - 1; i++) {
-        cout << "\tStep: " << stepCount++ << endl;
-        printPuzzle(solutionSteps.at(i));
+        // cout << "\tStep: " << stepCount++ << endl;
+
+        // chrono::duration<double> elapsedSeconds = solutionSteps.at(i).time;
+
+        chrono::duration<double> elapsedSeconds = solutionSteps.at(i).time - solutionSteps.at(i - 1).time;
+
+        double timeSeconds = elapsedSeconds.count();
+        double timeMs = timeSeconds * 1000;
+        currTimeMs += timeMs;
+        cout << currTimeMs << endl;
     }
-    cout << "\tSolution Step (" << stepCount << ")" << endl;
-    printPuzzle(solutionSteps.back());
+    
+    cout << solutionSteps.back().queueSize << endl;
     
 }
 
@@ -437,7 +482,12 @@ int main() {
     int testCase = 1;
 
     cout << endl;
+
+    vector<vector<double>> timesForEachPuzzleMs(testCases);
+
     while (testCases--) {
+
+        cout << testCases << endl;
 
         cout << "TEST CASE: " << testCase++ << endl;
         cout << "-------------------------------------" << endl;
@@ -460,18 +510,21 @@ int main() {
             }
         }
 
+
         {
             // Uniform Cost Search
             auto startTime = chrono::high_resolution_clock::now();
-            unordered_map<string, string> puzzleMap = uniformCostSearch(puzzle);
+            unordered_map<string, State> puzzleMap = uniformCostSearch(puzzle);
             auto endTime = chrono::high_resolution_clock::now();
 
-            printTime(endTime - startTime, 1);
+            chrono::duration<double> elapsedSeconds = endTime - startTime;
+            printTime(elapsedSeconds, 1);
+            timesForEachPuzzleMs.at(testCase - 2).push_back(elapsedSeconds.count() * 1000);
 
             string solutionStateString = stateToString(getSolutionState(puzzleLength));
 
             if (puzzleMap.count(solutionStateString)) {
-                vector<vector<vector<int>>> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
+                vector<State> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
                 reverse(solutionSteps.begin(), solutionSteps.end());
 
                 cout << "Solution Path Length: " << solutionSteps.size() - 1 << endl;
@@ -487,16 +540,20 @@ int main() {
         {
             // Misplaced Tile Heuristic A-Star Search
             auto startTime = chrono::high_resolution_clock::now();
-            unordered_map<string, string> puzzleMap = misplacedTileHeuristic(puzzle);
+            unordered_map<string, State> puzzleMap = misplacedTileHeuristic(puzzle);
             auto endTime = chrono::high_resolution_clock::now();
 
-            printTime(endTime - startTime, 2);
+            
+            chrono::duration<double> elapsedSeconds = endTime - startTime;
+            printTime(elapsedSeconds, 2);
+            timesForEachPuzzleMs.at(testCase - 2).push_back(elapsedSeconds.count() * 1000);
+
             string solutionStateString = stateToString(getSolutionState(puzzleLength));
 
             if (puzzleMap.count(solutionStateString)) {
-                vector<vector<vector<int>>> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
+                vector<State> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
                 reverse(solutionSteps.begin(), solutionSteps.end());
-                // printSolution(solutionSteps, puzzle);
+                printSolution(solutionSteps, puzzle);
                 cout << "Solution Path Length: " << solutionSteps.size() - 1 << endl;
 
 
@@ -510,15 +567,18 @@ int main() {
         {
             // Manhattan Distance Heuristic A-Star Search
             auto startTime = chrono::high_resolution_clock::now();
-            unordered_map<string, string> puzzleMap = manhattanDistanceHeuristic(puzzle);
+            unordered_map<string, State> puzzleMap = manhattanDistanceHeuristic(puzzle);
             auto endTime = chrono::high_resolution_clock::now();
             
-            printTime(endTime - startTime, 3);
+            
+            chrono::duration<double> elapsedSeconds = endTime - startTime;
+            printTime(elapsedSeconds, 3);
+            timesForEachPuzzleMs.at(testCase - 2).push_back(elapsedSeconds.count() * 1000);
 
             string solutionStateString = stateToString(getSolutionState(puzzleLength));
 
             if (puzzleMap.count(solutionStateString)) {
-                vector<vector<vector<int>>> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
+                vector<State> solutionSteps = traceBackSolutionSteps(puzzleMap, puzzleLength);
                 reverse(solutionSteps.begin(), solutionSteps.end());
 
                 cout << "Solution Path Length: " << solutionSteps.size() - 1 << endl;
@@ -531,6 +591,13 @@ int main() {
 
         cout << endl;
 
+    }
+
+    for (int i = 0; i < timesForEachPuzzleMs.size(); i++) {
+        // cout << "Puzzle " << i + 1 << " Times: " << endl;
+        cout << std::fixed << std::setprecision(2) << timesForEachPuzzleMs.at(i).at(0) << ", ";
+        cout << std::fixed << std::setprecision(2) << timesForEachPuzzleMs.at(i).at(1) << ", ";
+        cout << std::fixed << std::setprecision(2) << timesForEachPuzzleMs.at(i).at(2) << endl;
     }
 
 
